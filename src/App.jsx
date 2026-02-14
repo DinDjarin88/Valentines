@@ -12,19 +12,30 @@ function App() {
   const containerRef = useRef(null)
   const grabPointRef = useRef({ x: 0, y: 0 })
 
-  const handleMouseDown = (e) => {
+  const getClientPos = (e) => {
+    if (e.touches && e.touches.length > 0) {
+      return { x: e.touches[0].clientX, y: e.touches[0].clientY }
+    }
+    if (e.changedTouches && e.changedTouches.length > 0) {
+      return { x: e.changedTouches[0].clientX, y: e.changedTouches[0].clientY }
+    }
+    return { x: e.clientX, y: e.clientY }
+  }
+
+  const handlePointerDown = (e) => {
     if (ribbonPulled || giftOpened) return
     
     const ribbon = ribbonRef.current
     if (!ribbon) return
 
+    const pos = getClientPos(e)
     const rect = ribbon.getBoundingClientRect()
     const centerX = rect.left + rect.width / 2
     const centerY = rect.top + rect.height / 2
     
     grabPointRef.current = {
-      x: e.clientX - centerX,
-      y: e.clientY - centerY
+      x: pos.x - centerX,
+      y: pos.y - centerY
     }
     
     setIsDragging(true)
@@ -32,19 +43,19 @@ function App() {
     e.stopPropagation()
   }
 
-  const handleMouseMove = useCallback((e) => {
+  const handlePointerMove = useCallback((e) => {
     if (!isDragging || ribbonPulled || giftOpened) return
 
     const container = containerRef.current
     if (!container) return
 
+    const pos = getClientPos(e)
     const rect = container.getBoundingClientRect()
     const centerX = rect.left + rect.width / 2
     const centerY = rect.top + rect.height / 2
 
-    // Calculate position relative to center - direct mouse position
-    const mouseX = e.clientX - centerX
-    const mouseY = e.clientY - centerY
+    const mouseX = pos.x - centerX
+    const mouseY = pos.y - centerY
 
     // Update mouse position for ribbon following
     setMousePosition({ x: mouseX, y: mouseY })
@@ -83,14 +94,22 @@ function App() {
 
   useEffect(() => {
     if (isDragging) {
-      window.addEventListener('mousemove', handleMouseMove)
+      const handleMove = (e) => {
+        e.preventDefault()
+        handlePointerMove(e)
+      }
+      window.addEventListener('mousemove', handlePointerMove)
       window.addEventListener('mouseup', handleMouseUp)
+      window.addEventListener('touchmove', handleMove, { passive: false })
+      window.addEventListener('touchend', handleMouseUp)
       return () => {
-        window.removeEventListener('mousemove', handleMouseMove)
+        window.removeEventListener('mousemove', handlePointerMove)
         window.removeEventListener('mouseup', handleMouseUp)
+        window.removeEventListener('touchmove', handleMove)
+        window.removeEventListener('touchend', handleMouseUp)
       }
     }
-  }, [isDragging, handleMouseMove, handleMouseUp])
+  }, [isDragging, handlePointerMove, handleMouseUp])
 
   return (
     <div className="app" ref={containerRef}>
@@ -161,7 +180,8 @@ function App() {
             <div 
               className={`ribbon-bow-pullable ${isDragging ? 'dragging' : ''}`}
               ref={ribbonRef}
-              onMouseDown={handleMouseDown}
+              onMouseDown={handlePointerDown}
+              onTouchStart={handlePointerDown}
               style={{
                 '--mouse-x': `${ribbonEndPosition.x}px`,
                 '--mouse-y': `${ribbonEndPosition.y}px`
@@ -206,7 +226,7 @@ function App() {
 
           {!giftOpened && (
             <div className="instruction">
-              <p>💝 Click and drag the ribbon to open your gift 💝</p>
+              <p>💝 Tap and drag the ribbon to open your gift 💝</p>
             </div>
           )}
         </div>
